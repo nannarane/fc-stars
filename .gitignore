@@ -48,3 +48,12 @@ Thumbs.db
 *.mov
 *.wmv
 
+# Database files
+*.db
+
+# Environment files
+.env
+.venv/
+
+# Python cache directories
+__pycache__/
