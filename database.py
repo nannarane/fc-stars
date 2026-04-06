@@ -61,9 +61,17 @@ def get_schedules_with_details() -> List[Dict]:
         schedules = []
         for row in rows:
             schedule = dict(row)
+            # type 변환
+            if schedule['type'] == 'match':
+                schedule['Type'] = '⚽ Match'
+            elif schedule['type'] == 'training':
+                schedule['Type'] = '🏃 Practice'
+            else:
+                schedule['Type'] = schedule['type']
             # 날짜를 datetime 객체로 변환
             if schedule['date']:
                 schedule['date'] = datetime.strptime(schedule['date'], '%Y-%m-%d').date()
+            schedule['Date'] = schedule['date']
             schedules.append(schedule)
 
         return schedules

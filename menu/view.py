@@ -1,6 +1,7 @@
 import streamlit as st
 import pandas as pd
 from database import get_schedule_participants
+from streamlit_calendar import calendar
 
 def show_schedule_view(schedule_df, members_df):
     st.header("📅 일정")
@@ -92,6 +93,21 @@ def show_schedule_view(schedule_df, members_df):
     # 결과 필터 적용
     if "전체" not in selected_results and selected_results:
         filtered_df = filtered_df[filtered_df["Result"].isin(selected_results)]
+
+    # 달력 표시
+    if not filtered_df.empty:
+        events = []
+        for _, row in filtered_df.iterrows():
+            title = f"{row['Type']} - {row['Location']}"
+            if row['Type'] == '⚽ Match':
+                title += f" vs {row['Opponent']}"
+            events.append({
+                "title": title,
+                "start": str(row['Date']),
+                "end": str(row['Date']),
+                "allDay": True,
+            })
+        calendar(events=events, options={"initialView": "dayGridMonth"}, key="schedule_calendar")
 
     # 요약 정보
     st.subheader(f"📊 총 {len(filtered_df)}개 일정")

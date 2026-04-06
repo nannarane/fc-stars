@@ -10,6 +10,14 @@ from database import (
 )
 
 def show_schedule_management(schedule_df, members_data):
+    # 성공/에러 메시지 표시
+    if "success_message" in st.session_state:
+        st.success(st.session_state.success_message)
+        del st.session_state.success_message
+    if "error_message" in st.session_state:
+        st.error(st.session_state.error_message)
+        del st.session_state.error_message
+
     st.header("⚽ 일정 관리")
     st.markdown("새 일정을 추가하거나 기존 일정을 수정/삭제하세요.")
 
@@ -42,10 +50,11 @@ def show_schedule_management(schedule_df, members_data):
                     schedule_id = add_schedule(schedule_type, str(schedule_date), schedule_location, result or None)
                     if schedule_type == "match":
                         add_match_team(schedule_id, opponent_name, skill_level, age_group, manner_score)
-                    st.success("일정이 성공적으로 추가되었습니다!")
+                    st.session_state.success_message = "일정이 성공적으로 추가되었습니다!"
                     st.rerun()
                 except Exception as e:
-                    st.error(f"일정 추가 실패: {e}")
+                    st.session_state.error_message = f"일정 추가 실패: {e}"
+                    st.rerun()
 
     # 기존 일정 수정/삭제
     st.subheader("기존 일정 관리")
@@ -64,10 +73,11 @@ def show_schedule_management(schedule_df, members_data):
                 if st.button("일정 삭제", type="secondary"):
                     try:
                         delete_schedule(selected_schedule)
-                        st.success("일정이 삭제되었습니다!")
+                        st.session_state.success_message = "일정이 삭제되었습니다!"
                         st.rerun()
                     except Exception as e:
-                        st.error(f"일정 삭제 실패: {e}")
+                        st.session_state.error_message = f"일정 삭제 실패: {e}"
+                        st.rerun()
 
             with col2:
                 with st.expander("일정 수정", expanded=False):
@@ -124,10 +134,11 @@ def show_schedule_management(schedule_df, members_data):
                                     update_match_team(selected_schedule, edit_opponent, edit_skill_level, edit_age_group, edit_manner_score)
                                 else:
                                     delete_match_team(selected_schedule)
-                                st.success("일정이 수정되었습니다!")
+                                st.session_state.success_message = "일정이 수정되었습니다!"
                                 st.rerun()
                             except Exception as e:
-                                st.error(f"일정 수정 실패: {e}")
+                                st.session_state.error_message = f"일정 수정 실패: {e}"
+                                st.rerun()
     else:
         st.info("등록된 일정이 없습니다.")
 
@@ -165,10 +176,11 @@ def show_schedule_management(schedule_df, members_data):
                                 guest_id = add_guest_member(guest_name, guest_position)
                                 # 새 게스트를 참석자로 추가
                                 add_participant(manage_schedule, guest_id, 0)
-                                st.success(f"게스트 '{guest_name}'이(가) 추가되었습니다!")
+                                st.session_state.success_message = f"게스트 '{guest_name}'이(가) 추가되었습니다!"
                                 st.rerun()
                             except Exception as e:
-                                st.error(f"게스트 추가 실패: {e}")
+                                st.session_state.error_message = f"게스트 추가 실패: {e}"
+                                st.rerun()
 
                 st.write("### 참석자 목록")
 
@@ -228,10 +240,11 @@ def show_schedule_management(schedule_df, members_data):
                         if is_guest and st.button("🗑️", key=f"delete_guest_{manage_schedule}_{participant['member_id']}", help="게스트 삭제"):
                             try:
                                 delete_guest_member(participant['member_id'])
-                                st.success(f"게스트 '{participant['name']}'이(가) 삭제되었습니다!")
+                                st.session_state.success_message = f"게스트 '{participant['name']}'이(가) 삭제되었습니다!"
                                 st.rerun()
                             except Exception as e:
-                                st.error(f"삭제 실패: {e}")
+                                st.session_state.error_message = f"삭제 실패: {e}"
+                                st.rerun()
                         else:
                             st.write("")  # 빈 공간
 
@@ -253,7 +266,7 @@ def show_schedule_management(schedule_df, members_data):
                         # 데이터베이스 업데이트
                         update_schedule_participants(manage_schedule, updated_participants)
 
-                        st.success("참석자 정보가 저장되었습니다!")
+                        st.session_state.success_message = "참석자 정보가 저장되었습니다!"
 
                         # 멤버 통계 업데이트 (출석일수, 골 수)
                         for participant in updated_participants:
@@ -265,7 +278,8 @@ def show_schedule_management(schedule_df, members_data):
 
                         st.rerun()
                     except Exception as e:
-                        st.error(f"저장 실패: {e}")
+                        st.session_state.error_message = f"저장 실패: {e}"
+                        st.rerun()
 
                 # 현재 참석자 요약
                 participating_count = sum(1 for p in updated_participants if p['is_participating'])
