@@ -51,6 +51,7 @@ schema_statements = [
         name TEXT NOT NULL,
         skill_level TEXT,
         age_group TEXT,
+        match_type TEXT CHECK (match_type IN ('5:5', '6:6', '7:7')) DEFAULT '5:5',
         manner_score DECIMAL(3,1) CHECK (manner_score >= 0 AND manner_score <= 5),
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -63,7 +64,41 @@ schema_statements = [
     "CREATE INDEX idx_schedule_participants_member_id ON schedule_participants(member_id)"
 ]
 
+# 게시판 테이블
+board_tables = [
+    """CREATE TABLE posts (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        title TEXT NOT NULL,
+        content TEXT NOT NULL,
+        author_id INTEGER NOT NULL,
+        category TEXT CHECK (category IN ('공지', '팁', '일반')) DEFAULT '일반',
+        is_pinned BOOLEAN DEFAULT 0,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (author_id) REFERENCES members(id) ON DELETE CASCADE
+    )""",
+    """CREATE TABLE post_comments (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        post_id INTEGER NOT NULL,
+        author_id INTEGER NOT NULL,
+        content TEXT NOT NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (post_id) REFERENCES posts(id) ON DELETE CASCADE,
+        FOREIGN KEY (author_id) REFERENCES members(id) ON DELETE CASCADE
+    )""",
+    "CREATE INDEX idx_posts_created_at ON posts(created_at)",
+    "CREATE INDEX idx_posts_category ON posts(category)",
+    "CREATE INDEX idx_posts_is_pinned ON posts(is_pinned)",
+    "CREATE INDEX idx_post_comments_post_id ON post_comments(post_id)",
+    "CREATE INDEX idx_post_comments_author_id ON post_comments(author_id)"
+]
+
+# 모든 스키마 실행
 for statement in schema_statements:
+    cursor.execute(statement)
+
+for statement in board_tables:
     cursor.execute(statement)
 
 conn.commit()

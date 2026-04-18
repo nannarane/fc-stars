@@ -1,146 +1,134 @@
 import streamlit as st
-import pandas as pd
-import altair as alt
-from datetime import datetime
-from database import (
-    get_schedules_with_details, get_members, get_schedule_participants, get_member_stats,
-    add_schedule, add_match_team, update_schedule, delete_schedule,
-    add_member, update_member, delete_member,
-    add_participant, remove_participant,
-    get_schedule_participants_detailed, update_schedule_participants,
-    add_guest_member, delete_guest_member
+from utils.session_store import get_cookie_jar, load_refresh_token, save_refresh_token, clear_refresh_token
+from services.auth_service import restore_user_from_refresh_token
+
+from settings import USE_FIRESTORE, FAVICON_URL
+from PIL import Image
+
+from ui.auth_ui import (
+    get_login_ui, 
+    get_signup_ui, 
+    get_logout_ui
 )
 
-# 메뉴 모듈 import
-from menu.view import show_schedule_view
-from menu.schedule import show_schedule_management
-from menu.members import show_member_management
-from menu.stats import show_member_stats
-from menu.admin import show_admin_menu
+from sqlite_init import initialize_dev_database
+from firebase_init import init_firebase
+
+
+# Get Cookie
+cookies = get_cookie_jar()
+
+favicon = Image.open(FAVICON_URL)
 
 st.set_page_config(
-    page_title="FC Stars⭐ - Management",    
+    page_title="FC Stars", 
     layout="wide",
-    initial_sidebar_state="expanded"
+    page_icon=favicon
 )
 
-st.title("FC Stars⭐ - Management System")
-st.markdown("팀 일정 및 멤버 관리 시스템")
+if "current_user" not in st.session_state:
+    st.session_state.current_user = None
 
-# 전체 UI 폰트 크기 조정 CSS
-st.markdown("""
-<style>
-    /* 전체 폰트 크기 증가 */
-    .main * {
-        font-size: 16px !important;
-    }
+def hydrate_session_from_cookie():
+    if st.session_state.get("current_user") is not None:
+        return
+
+    if st.session_state.get("logout_requested"):
+        st.session_state.pop("logout_requested", None)
+        return
+
+    if not USE_FIRESTORE:
+        return
+
+    refresh_token = load_refresh_token(cookies)
+    if not refresh_token:
+        return
+
+    try:
+        user = restore_user_from_refresh_token(refresh_token)
+        st.session_state.current_user = user
+
+        new_refresh_token = user.get("refresh_token")
+        if new_refresh_token and new_refresh_token != refresh_token:
+            save_refresh_token(cookies, new_refresh_token)
+
+    except Exception as e:
+        print(f"[AUTH] auto-login restore failed: {e}")
+        clear_refresh_token(cookies)
+
+
+# Set Sidebar
+def set_sidebar():
+    user = st.session_state.get("current_user")
     
-    /* 헤더 폰트 크기 조정 */
-    h1 {
-        font-size: 2.0em !important;
-    }
-    h2, h3, h4, h5, h6 {
-        font-size: 1.3em !important;
-    }
-    
-    /* 사이드바 폰트 크기 증가 */
-    .sidebar .sidebar-content * {
-        font-size: 16px !important;
-    }
-    
-    /* 버튼 폰트 크기 증가 */
-    .stButton button {
-        font-size: 16px !important;
-        padding: 8px 16px !important;
-    }
-    
-    /* 데이터프레임 폰트 크기 증가 */
-    .dataframe {
-        font-size: 16px !important;
-    }
-    
-    /* 입력 필드 폰트 크기 증가 */
-    .stTextInput input, .stNumberInput input, .stSelectbox select, .stTextArea textarea {
-        font-size: 16px !important;
-    }
-    
-    /* 라벨 폰트 크기 증가 */
-    .stTextInput label, .stNumberInput label, .stSelectbox label, .stTextArea label {
-        font-size: 16px !important;
-    }
-    
-    /* 메트릭 폰트 크기 증가 */
-    .metric-container {
-        font-size: 16px !important;
-    }
-    
-    /* 캡션 폰트 크기 증가 */
-    .caption {
-        font-size: 16px !important;
-    }
-</style>
-""", unsafe_allow_html=True)
+    login_page = st.Page(show_login_signup_screen, title="로그인", icon=":material/login:", visibility="hidden")    
 
-# 사이드바 메뉴
-with st.sidebar:  
+    dashboard = st.Page(
+        "ui/admin/dashboard.py", title="Dashboard", icon=":material/dashboard:"
+    )
+    members = st.Page("ui/admin/members.py", title="Members", icon=":material/group:")
+    account = st.Page("ui/admin/account.py", title="Account", icon=":material/person_outline:")
+    tools = st.Page("ui/admin/tools.py", title="Tools", icon=":material/build:")
 
-    # 메뉴 버튼들
-    menu_options = {
-        "📅 일정 보기": "view",
-        "⚽ 일정 관리": "schedule",
-        "👥 멤버 관리": "members",
-        "📊 통계": "stats",
-        "🔧 관리자": "admin"
-    }
+    schedules = st.Page("ui/team/schedules.py", title="Schedules", icon=":material/calendar_today:", default=True)    
+    records = st.Page("ui/team/records.py", title="Records", icon=":material/analytics:")
+    board = st.Page("ui/team/board.py", title="Board", icon=":material/assignment:")
 
-    # 세션 상태에 선택된 메뉴 저장
-    if "selected_menu" not in st.session_state:
-        st.session_state.selected_menu = "view"
+    menu_items = {}
+    menu_items["Team"] = [schedules, records, board]
 
-    # 메뉴 버튼들 생성
-    for menu_name, menu_key in menu_options.items():
-        if st.button(menu_name, key=f"menu_{menu_key}",
-                    use_container_width=True,
-                    type="primary" if st.session_state.selected_menu == menu_key else "secondary"):
-            st.session_state.selected_menu = menu_key
-            st.rerun()
+    if st.session_state.get("current_user"):
+        if user["role"] == "admin":
+            menu_items["Admin"] = [dashboard, members, account, tools]
+        elif user["role"] == "operator":
+            menu_items["Admin"] = [dashboard, members, account]        
 
-    menu_key = st.session_state.selected_menu
+        pg = st.navigation(
+            menu_items
+        )
 
-# 데이터베이스에서 일정 데이터 불러오기 (공통)
-schedules_data = get_schedules_with_details()
-schedule_df = pd.DataFrame([
-    {
-        "ID": s["id"],
-        "Date": s["date"],
-        "Type": "⚽ Match" if s["type"] == "match" else "🏃 Practice",
-        "Opponent": s["opponent"] or "",
-        "Location": s["location"],
-        "Result": s["result"] or "",
-        "Participants": s["participants"],
-        "Skill_Level": s["skill_level"] or "",
-        "Age_Group": s["age_group"] or "",
-        "Manner_Score": s["manner_score"] or 0,
-    }
-    for s in schedules_data
-])
+        get_logout_ui(cookies)
 
-# 멤버 데이터도 공통으로 불러오기
-members_data = get_members()
-members_df = pd.DataFrame(members_data)
+    else:  
+        pg = st.navigation([login_page])
 
-# 메뉴에 따른 컨텐츠 표시
-if menu_key == "view":
-    show_schedule_view(schedule_df, members_df)
+    pg.run()
+   
 
-elif menu_key == "schedule":
-    show_schedule_management(schedule_df, members_data)
 
-elif menu_key == "members":
-    show_member_management(members_df)
+@st.cache_resource
+def bootstrap():
+    if not USE_FIRESTORE:
+        initialize_dev_database(reset=False, seed=True)        
+    else:
+        init_firebase()
 
-elif menu_key == "stats":
-    show_member_stats(members_data)
 
-elif menu_key == "admin":
-    show_admin_menu()
+# UI Components
+def show_login_signup_screen():    
+    col1, col2, col3 = st.columns([1, 2, 1])
+    with col2:
+        # Set page config title and favicon    
+        st.title("FC Stars")
+
+        tab_login, tab_signup = st.tabs(["로그인", "회원가입"])
+        
+        with tab_login:
+            get_login_ui(cookies)
+
+        with tab_signup:
+            get_signup_ui()
+
+
+# Main App
+def main():
+    bootstrap()
+
+    # claims Sync
+    hydrate_session_from_cookie()
+
+    set_sidebar()
+
+
+if __name__ == "__main__":
+    main()

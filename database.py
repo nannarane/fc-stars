@@ -2,12 +2,12 @@ import sqlite3
 import os
 from datetime import datetime
 from typing import List, Dict, Optional
+from settings import SQLITE_DB_PATH
 
-DATABASE_PATH = os.path.join(os.path.dirname(__file__), 'fc_stars.db')
 
 def get_db_connection():
     """SQLite 데이터베이스 연결을 반환합니다."""
-    conn = sqlite3.connect(DATABASE_PATH)
+    conn = sqlite3.connect(SQLITE_DB_PATH)
     conn.row_factory = sqlite3.Row  # 컬럼명으로 접근 가능하게 설정
     return conn
 
@@ -46,35 +46,33 @@ def get_schedules_with_details() -> List[Dict]:
         cursor = conn.cursor()
         query = """
         SELECT s.id, s.type, s.date, s.location, s.result,
-               mt.name as opponent, mt.skill_level, mt.age_group, mt.manner_score,
+               mt.name as opponent, mt.skill_level, mt.age_group, mt.match_type, mt.manner_score,
                COUNT(sp.member_id) as participants
         FROM schedules s
         LEFT JOIN match_teams mt ON s.id = mt.schedule_id
         LEFT JOIN schedule_participants sp ON s.id = sp.schedule_id
         GROUP BY s.id, s.type, s.date, s.location, s.result,
-                 mt.name, mt.skill_level, mt.age_group, mt.manner_score
+                 mt.name, mt.skill_level, mt.age_group, mt.match_type, mt.manner_score
         ORDER BY s.date DESC
         """
         cursor.execute(query)
         rows = cursor.fetchall()
 
         schedules = []
+        """
         for row in rows:
             schedule = dict(row)
-            # type 변환
-            if schedule['type'] == 'match':
-                schedule['Type'] = '⚽ Match'
-            elif schedule['type'] == 'training':
-                schedule['Type'] = '🏃 Practice'
-            else:
-                schedule['Type'] = schedule['type']
             # 날짜를 datetime 객체로 변환
-            if schedule['date']:
-                schedule['date'] = datetime.strptime(schedule['date'], '%Y-%m-%d').date()
-            schedule['Date'] = schedule['date']
+            if schedule['date']:                
+                 #schedule['date'] = datetime.strptime(schedule['date'], '%Y-%m-%d').date()
+                print(f"Raw date value: {schedule['date']}")  # 디버깅용 출력
+                #schedule['date'] = datetime.fromtimestamp(schedule['date'])                
+                
             schedules.append(schedule)
 
         return schedules
+        """
+        return rows
     finally:
         conn.close()
 
@@ -142,15 +140,15 @@ def add_schedule(type: str, date: str, location: str, result: str = None) -> int
     finally:
         conn.close()
 
-def add_match_team(schedule_id: int, name: str, skill_level: str, age_group: str, manner_score: float):
+def add_match_team(schedule_id: int, name: str, skill_level: str, age_group: str, manner_score: float, match_type: str = "5:5"):
     """매치 상대팀 정보 추가"""
     conn = get_db_connection()
     try:
         cursor = conn.cursor()
         cursor.execute("""
-            INSERT INTO match_teams (schedule_id, name, skill_level, age_group, manner_score)
-            VALUES (?, ?, ?, ?, ?)
-        """, (schedule_id, name, skill_level, age_group, manner_score))
+            INSERT INTO match_teams (schedule_id, name, skill_level, age_group, match_type, manner_score)
+            VALUES (?, ?, ?, ?, ?, ?)
+        """, (schedule_id, name, skill_level, age_group, match_type, manner_score))
         conn.commit()
     finally:
         conn.close()
@@ -161,7 +159,7 @@ def get_match_team(schedule_id: int) -> Optional[Dict]:
     try:
         cursor = conn.cursor()
         cursor.execute("""
-            SELECT name, skill_level, age_group, manner_score
+            SELECT name, skill_level, age_group, match_type, manner_score
             FROM match_teams
             WHERE schedule_id = ?
         """, (schedule_id,))
@@ -170,21 +168,21 @@ def get_match_team(schedule_id: int) -> Optional[Dict]:
     finally:
         conn.close()
 
-def update_match_team(schedule_id: int, name: str, skill_level: str, age_group: str, manner_score: float):
+def update_match_team(schedule_id: int, name: str, skill_level: str, age_group: str, manner_score: float, match_type: str = "5:5"):
     """상대팀 정보를 수정하거나 없으면 새로 추가합니다."""
     conn = get_db_connection()
     try:
         cursor = conn.cursor()
         cursor.execute("""
             UPDATE match_teams
-            SET name = ?, skill_level = ?, age_group = ?, manner_score = ?
+            SET name = ?, skill_level = ?, age_group = ?, match_type = ?, manner_score = ?
             WHERE schedule_id = ?
-        """, (name, skill_level, age_group, manner_score, schedule_id))
+        """, (name, skill_level, age_group, match_type, manner_score, schedule_id))
         if cursor.rowcount == 0:
             cursor.execute("""
-                INSERT INTO match_teams (schedule_id, name, skill_level, age_group, manner_score)
-                VALUES (?, ?, ?, ?, ?)
-            """, (schedule_id, name, skill_level, age_group, manner_score))
+                INSERT INTO match_teams (schedule_id, name, skill_level, age_group, match_type, manner_score)
+                VALUES (?, ?, ?, ?, ?, ?)
+            """, (schedule_id, name, skill_level, age_group, match_type, manner_score))
         conn.commit()
     finally:
         conn.close()
@@ -392,6 +390,6 @@ def update_schedule_participants(schedule_id: int, participants_data: List[Dict]
         conn.close()
 
 # 데이터베이스 초기화 (모듈 로드 시 실행)
-if not os.path.exists(DATABASE_PATH):
+if not os.path.exists(SQLITE_DB_PATH):
     init_database()
     load_sample_data()

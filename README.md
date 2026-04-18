@@ -1,4 +1,4 @@
-# FC Stars⭐ - Management System
+# FC Stars - Management System
 
 풋살팀 FC Stars의 종합 관리 시스템입니다. 일정 관리, 멤버 관리, 통계 분석, 참석자 관리를 하나의 플랫폼에서 제공합니다.
 

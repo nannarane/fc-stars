@@ -54,6 +54,11 @@ Thumbs.db
 # Environment files
 .env
 .venv/
+firebase-*.json
+
+# Streamlit secrets file
+.streamlit/
+secrets.toml
 
 # Python cache directories
 __pycache__/
