@@ -1,10 +1,12 @@
 # settings.py
 import os
 from pathlib import Path
+import streamlit as st
 
 BASE_DIR = Path(__file__).resolve().parent
 
-APP_ENV = os.getenv("APP_ENV", "dev").strip().lower()
+#APP_ENV = os.getenv("APP_ENV", "dev").strip().lower()
+APP_ENV = st.secrets.get("app_env", "dev").strip().lower()
 
 print(f"Running in {APP_ENV} environment.")
 
